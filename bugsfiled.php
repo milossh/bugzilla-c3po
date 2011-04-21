@@ -1,5 +1,43 @@
 <?php
 
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bugzilla C3PO.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * 
+ * Portions created by the Initial Developer are Copyright (C) 2___
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s): Milos Dinic <milos@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+$time_start = microtime(true);
+ 
 include_once "controller.inc.php";
 
 // Populate $locales var with a set of locales
@@ -9,15 +47,6 @@ $locales = clean_explode($_POST['locales'], ',');
 // Summary, or title of the bug;
 // An locale tag in form of "[ab-CD]" will preceed it
 $bugsummary = $_POST['summary'];
-
-
-// Text area content that's sent using POST methos
-// is stored in this war. Later on we'll run it
-// against a regex which enables us to use 
-// variables when filing bugs
-$bugdesc = <<<DESCRIPTION
-{$_POST['description']}
-DESCRIPTION;
 
 // Login info that we'll get via POST
 $xml_data_login = array(
@@ -79,22 +108,20 @@ if (empty($response['id'])) {
 foreach($locales as $key => $shortcode)
 {
     // This set of vars needs to be in the loop as it depends on locale code
-    $xml_data_create['bug_file_loc'] = preg_replace('{{{{locale}}}}', $shortcode, $_POST['url']);
-    $xml_data_create['summary'] = preg_replace('{{{{locale}}}}', $shortcode, $_POST['summary']);
-    $xml_data_create['description'] = preg_replace('{{{{locale}}}}', $shortcode, $_POST['description']);
+    $xml_data_create['bug_file_loc'] = str_replace('{{{locale}}}', $shortcode, $_POST['url']);
+    $xml_data_create['summary'] = str_replace('{{{locale}}}', $shortcode, $_POST['summary']);
+    $xml_data_create['description'] = str_replace('{{{locale}}}', $shortcode, $_POST['description']);
+    
     // Make the request to file a bug
     $request = xmlrpc_encode_request("Bug.create", $xml_data_create); // create a request for filing bugs
     curl_setopt($curl_start, CURLOPT_POSTFIELDS, $request);
     curl_setopt($curl_start, CURLOPT_COOKIEFILE, $cookie);
     $buglist_array_item = xmlrpc_decode(curl_exec($curl_start)); // Get the ID of the filed bug
-    $buglist[] = $buglist_array_item['id']; // Add the ID of the filed bug to array
+    echo '<br><a href="'. $bugzilla_url . 'show_bug.cgi?id=' . $buglist_array_item['id'] . '">Bug ID=' . $buglist_array_item['id'] . '</a>';
 }
 
 curl_close($curl_start);
-
-foreach($buglist as $item) {
-    echo '<br><a href="'. $bugzilla_url . 'show_bug.cgi?id=' .$item . '">Bug ID=' . $item . '</a>';
-}
-
 unlink($cookie);
-?>
+$time_end = microtime(true);
+$time = $time_end - $time_start;
+echo '<div style="background: #000000; color: #FFFFFF; position: absolute; left: 50%; bottom: 0;"> Script execution time: '.$time.'</div>';

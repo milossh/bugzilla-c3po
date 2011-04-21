@@ -1,95 +1,128 @@
 <?php
 
-// We define an array with locales we want to file bugs for
-$locales = array(
-3 => "ast", 4 => "be", 5 => "bg", 6 => "bn-BD", 7 => "bn-IN", 8 => "ca", 9 => "cs", 10 => "cy", 11 => "da", 12 => "de", 13 => "el", 14 => "en-GB", 15 => "eo", 16 => "es-AR", 17 => "es-CL", 18 => "es-ES", 19 => "es-MX", 20 => "et", 21 => "eu", 22 => "fa", 23 => "fi", 24 => "fr", 25 => "fy-NL", 26 => "ga-IE", 27 => "gd", 28 => "gl", 29 => "gu-IN", 30 => "he", 31 => "hi-IN", 32 => "hr", 33 => "hu", 34 => "hy-AM", 35 => "id", 36 => "is", 37 => "it", 38 => "ka", 39 => "kk", 40 => "kn", 41 => "ko", 42 => "ku", 43 => "lt", 44 => "lv", 45 => "mk", 46 => "ml", 47 => "mn", 48 => "mr", 49 => "nb-NO", 50 => "nl", 51 => "nn-NO", 52 => "oc", 53 => "or", 54 => "pa-IN", 55 => "pl", 56 => "pt-BR", 57 => "pt-PT", 58 => "rm", 59 => "ro", 60 => "ru", 61 => "si", 62 => "sk", 63 => "sl", 64 => "sq", 65 => "sr", 66 => "sv-SE", 67 => "ta", 68 => "ta-LK", 69 => "te", 70 => "th", 71 => "tr", 72 => "uk", 73 => "vi", 74 => "zh-CN", 75 => "zh-TW",
-);
+include_once 'controller.inc.php';
 
-// Switch the bugzilla installation URL below
-$bugzilla_url = 'https://bugzilla.mozilla.org/';
-
-// Summary, or title of the bug;
-// An locale tag in form of "[ab-CD]" will preceed it
-$bugsummary = 'New about pages on mozilla.com';
-
-
-// Data we use for bug creation
-$xml_data_create = array (
-    'product' => 'Websites', 
-    'component' => 'www.mozilla.com',
-    'version' => 'unspecified',
-    'op_sys' => 'All', // Operating system
-    'rep_platform' => 'All', // Platform
-    'status_whiteboard' => '[l10n]',
-);
-
-$curl_target = $bugzilla_url . 'xmlrpc.cgi';
-$xml_data_login = array(
-    'login' => 'bugzilla email goes here',
-    'password' => 'myl337sp34kp455w0rd',
-    'remember' => 1,
-);
-
-$cookie = tempnam('', 'bugzilla-filer');
-$curlopts = array(
-    CURLOPT_URL     => $curl_target,
-    CURLOPT_POST    => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER  => array( 'Content-Type: text/xml', 'charset=utf-8' )
-);
-
-// Script starts here
-$curl_start = curl_init();
-curl_setopt_array($curl_start, $curlopts);
-$request = xmlrpc_encode_request("User.login", $xml_data_login);
-curl_setopt($curl_start, CURLOPT_POSTFIELDS, $request);
-curl_setopt($curl_start, CURLOPT_COOKIEJAR, $cookie); // Get the cookie from Bugzilla
-
-$response = curl_exec($curl_start); // Outputs user id
-$response = xmlrpc_decode($response);
-
-if (empty($response['id'])) {
-    trigger_error("xmlrpc: $response[faultString] ($response[faultCode])");
-}
-
-// If no errors were thrown at user, that means we're connected, cookie is saved
-// which means we're logged in and session has started
-
-
-// Now we loop through all locales from a $locales var and file a bug for each one
-foreach($locales as $key => $code)
-{   
-$bugdesc = <<<DESCRIPTION
-
-My text here. I am allowed to use vars like this {$myvar}
-Make sure that heredoc closing tag (DESCRIPTION;) is on 
-the beggining of the new line
-
-DESCRIPTION;
-    // This set of vars needs to be in the loop as it depends on locale code
-    $xml_data_create['bug_file_loc'] = "http://www-trunk.stage.mozilla.com/" . $code . "/about/";
-    $xml_data_create['summary'] = '[' . $code . '] '. $bugsummary;
-    $xml_data_create['description'] = $bugdesc;
-    
-    // Make the request to file a bug
-    $request = xmlrpc_encode_request("Bug.create", $xml_data_create);
-    curl_setopt($curl_start, CURLOPT_POSTFIELDS, $request);
-    curl_setopt($curl_start, CURLOPT_COOKIEFILE, $file_cookie);
-    $buglist_array_item = xmlrpc_decode(curl_exec($curl_start)); // Get the ID of the filed bug
-    $buglist[] = $buglist_array_item['id']; // Add the ID of the filed bug to array
-}
-
-curl_close($curl_start);
-
-echo "List of bugs to add as dependices to the tracking bug:";
-
-foreach($buglist as $item) {
-    echo $item . ', ';
-}
-
-foreach($buglist as $item) {
-    echo '<br><a href="'. $bugzilla_url . 'show_bug.cgi?id=' .$item . '">Bug ID=' . $item . '</a>';
-}
-
-unlink($file_cookie);
 ?>
+
+<html>
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8"><!--  -->
+        <link rel="icon" href="https://l10n-stage-sj.mozilla.org/favicon.ico" type="image/x-icon">
+
+        <title>L10n Bug helper</title>
+        <script type="text/javascript" src="<?=$bugzilla_url?>config.cgi"></script>
+        <script>
+            var selectedProduct;
+            function toggleLocales(chk) {
+                if (chk.checked == 1)
+                {document.getElementById('locales').style.display = 'none';}
+                else {document.getElementById('locales').style.display = 'block';}
+            }
+            function updateProduct() {
+                var blah = document.getElementById('product-select').selectedIndex;
+                selectedProduct = document.getElementById('product-select').options[blah].text;
+                updateComponent();
+                updateVersion();
+            }
+                            
+            function updateComponent() {
+                var tempArray = component[selectedProduct];
+                var compSelect = document.getElementById('component-select');
+
+                for(var i=0;i<tempArray.length;i++){
+                    var optionItem = document.createElement("option");
+                    optionItem.text = tempArray[i];
+                    optionItem.value = tempArray[i];
+                    compSelect.appendChild(optionItem);
+                }
+            }
+            function updateVersion() {
+                var tempArray = version[selectedProduct];
+                var verSelect = document.getElementById('version-select');
+
+                for(var i=0;i<tempArray.length;i++){
+                    var optionItem = document.createElement("option");
+                    optionItem.text = tempArray[i];
+                    optionItem.value = tempArray[i];
+                    verSelect.appendChild(optionItem);
+                }
+            }
+        </script>
+        <link href="style/main.css" media="all" type="text/css" rel="stylesheet">
+
+    </head>
+    <body>
+        <div id="menu">
+            <div id="auth"><!--  -->
+                <a onclick="$('#site_login').show();$(this).hide(); $('#id_username').focus(); return false;" href="">Log in</a>
+
+                <form style="display: none;" onsubmit="return submit_site_login();" id="site_login" method="POST" action="/accounts/login"><input name="next" value="" type="hidden"><ul><li><label for="id_username">Username:</label> <input id="id_username" name="username" maxlength="75" type="text"></li>
+                <li><label for="id_password">Password:</label> <input name="password" id="id_password" type="password"></li><li><input value="OK" type="submit"></li></ul></form>
+
+            </div>
+            <ul>
+                <li>Mozilla Localization</li>
+                <li><a href="https://l10n-stage-sj.mozilla.org/">Home</a></li>
+                <li><a href="https://l10n-stage-sj.mozilla.org/teams/">Teams</a></li>
+                <li><a href="https://wiki.mozilla.org/L10n">Documentation</a></li>
+            </ul>
+            <br>
+        </div>
+        
+        <div id="main-content">
+            <div class="main-input" style="width: 550px;">
+                <h2>Bugzilla C3PO</h2>
+                <form name="bugzilla" action="bugsfiled.php" method="post">
+                    <div><span class="text">Username:</span><span><input type="text" name="username" /></span></div>
+                    <div><span class="text">Password:</span><span><input type="password" name="pwd" /></span></div>
+                        
+                    <div>
+                        <span class="text">Product:</span>
+                        <span><select id="product-select" name="product" onchange="updateProduct()">
+                            <option default>Select a product</option>
+                            <script>
+                                for(var product in component) {
+                                    document.write('<option value=' + product + '>' + product + '</option>');
+                                }
+                            </script>
+                        </select></span>
+                    </div>
+                    <div>
+                        <span class="text">Component:</span>
+                        <span><select id="component-select" name="component">
+                            <option value="null">Select component</option>                                
+                        </select></span>
+                    </div>
+                    <div>
+                        <span class="text">Version:</span>
+                        <span><select id="version-select" name="version">
+                            <option value="null">Select version</option>                                
+                        </select></span>
+                    </div>
+
+                    <div><span class="text">Assign to:</span><span><input type="text" name="assign_to" /></span></div>
+                    <div><span class="text">Blocks:</span><span><input type="text" name="blocked" /></span></div>
+                    <div><span class="text">Whiteboard:</span><span><input type="text" name="whiteboard" /></span></div>
+                    <div><span class="text">URL:</span><span><input type="text" name="url" /></span></div>
+                    <div>
+                        <span class="text">List of locales:</span>
+                        <span><input id="locales" type="text" name="locales" /></span>
+                        <span><input style="text-align: right;" onclick="toggleLocales(this);" type="checkbox" name="all-locales" value="all" /> All locales</span>
+                    </div>
+                    <div><span class="text">Summary:</span><span><input type="text" name="summary" /></span></div>
+                    <span class="text">Description:</span>
+                    <div>
+                        <textarea name="description" rows="10" cols="80" />Write in your bug description here...</textarea>
+                    </div>
+                    <div class="submit"><input type="submit" value="Submit" /></div>
+
+                </form>
+            </div>
+        </div>
+        <div id="page_footer">
+            <a href="https://l10n-stage-sj.mozilla.org/privacy/">Privacy policy</a>
+        </div>
+    </body>
+
+    
+</html>
