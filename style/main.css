@@ -1,0 +1,53 @@
+          #menu {
+            margin: 0 0 2em;
+            padding: 10px;
+            font-size: small;
+            font-style: italic;
+            line-height: 1em;
+            background-color: #eee;
+            -moz-border-radius: .5em;
+          }
+          #menu ul {
+            list-style: none;
+            float: left;
+            margin: 0;
+            padding: 0;
+          }
+          #menu li {
+            float: left;
+            margin: 0 10px;
+          }
+          #menu br {
+            clear: both;
+          }
+          #auth {
+            float: right;
+          }
+          #page_footer {
+            margin-top: 2em;
+            padding: 10px;
+            font-size: small;
+            font-style: italic;
+            line-height: 1em;
+            background-color: #eee;
+            -moz-border-radius: .5em;
+          }
+        div.buglink {
+          float: left;
+          padding: 2px;
+        }
+        #show-extra-fields small {
+          color: blue;
+          padding: 2px 3px;
+          background-color: #eee;
+        }
+        #show-extra-fields small:hover {
+          cursor: pointer;
+        }
+        .extra-field {
+          display: none;
+        }
+        .text {
+            display: inline-block;
+            width: 300px;
+        }
