@@ -16,11 +16,11 @@
  * The Original Code is Bugzilla C3PO.
  *
  * The Initial Developer of the Original Code is Mozilla.
- * 
+ *
  * Portions created by the Initial Developer are Copyright (C) 2___
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s): Milos Dinic <milos@mozilla.com>
+ * Contributor(s): Milos Dinic <milos@mozilla.com>, Pascal Chevrel <pascal@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,14 +35,41 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+function dashboardItem($locale, $bugnumber, $description, $tag='') {
+
+    $value = <<<VALUE
+
+'{$bugnumber}'=> array(
+            '{$bugnumber}',
+            '{$description}',
+            '',
+            array('{$locale}'),
+            array('{$tag}'),
+            array(''),
+            ),
+
+VALUE;
+
+    return $value;
+}
 
 $time_start = microtime(true);
- 
-include_once "controller.inc.php";
+
+require_once 'controller.inc.php';
 
 // Populate $locales var with a set of locales
 // we want to file bugs for
-$locales = clean_explode($_POST['locales'], ',');
+
+if(isset($_POST['all-locales'])) {
+    $locales = $full_languages;
+} elseif (isset($_POST['locales'])) {
+    $locales = clean_explode($_POST['locales'], ',');
+} else {
+    echo 'error: no locale codes';
+    exit;
+}
+
+sort($locales);
 
 // Summary, or title of the bug;
 // An locale tag in form of "[ab-CD]" will preceed it
@@ -50,7 +77,7 @@ $bugsummary = $_POST['summary'];
 
 // Login info that we'll get via POST
 $xml_data_login = array(
-    'login' => $_POST['username'],
+    'login'    => $_POST['username'],
     'password' => $_POST['pwd'],
     'remember' => 1,
 );
@@ -58,14 +85,14 @@ $xml_data_login = array(
 // Data we use for bug creation
 // All data is provided on front page
 $xml_data_create = array (
-    'product' => $_POST['product'],
-    'component' => $_POST['component'],
-    'version' => $_POST['version'],
-    'op_sys' => 'All', // Operating system
-    'rep_platform' => 'All', // Platform
+    'product'           => $_POST['product'],
+    'component'         => $_POST['component'],
+    'version'           => $_POST['version'],
+    'op_sys'            => 'All', // Operating system
+    'rep_platform'      => 'All', // Platform
     'status_whiteboard' => $_POST['whiteboard'],
-    'blocked' => $_POST['blocked'],
-    'assigned_to' => $_POST['assign_to'],
+    'blocked'           => $_POST['blocked'],
+    'assigned_to'       => $_POST['assign_to'],
 );
 
 // Set the target for our requests
@@ -76,10 +103,10 @@ $cookie = tempnam('', 'bugzilla-filer');
 
 // Set cURL options
 $curlopts = array(
-    CURLOPT_URL     => $curl_target,
-    CURLOPT_POST    => true,
+    CURLOPT_URL            => $curl_target,
+    CURLOPT_POST           => true,
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER  => array( 'Content-Type: text/xml', 'charset=utf-8' )
+    CURLOPT_HTTPHEADER     => array( 'Content-Type: text/xml', 'charset=utf-8' )
 );
 
 // Initialize cURL
@@ -89,7 +116,7 @@ curl_setopt_array($curl_start, $curlopts);
 // Create a request based on data we got from index.php
 $request = xmlrpc_encode_request("User.login", $xml_data_login);
 curl_setopt($curl_start, CURLOPT_POSTFIELDS, $request);
-curl_setopt($curl_start, CURLOPT_COOKIEJAR, $cookie); // Get the cookie from Bugzilla
+curl_setopt($curl_start, CURLOPT_COOKIEJAR,  $cookie); // Get the cookie from Bugzilla
 
 $response = curl_exec($curl_start); // execute
 $response = xmlrpc_decode($response); // Decoded response is logged-in user ID
@@ -105,23 +132,42 @@ if (empty($response['id'])) {
 // which means we're logged in and session has started
 
 // Now we loop through all locales from a $locales var and file a bug for each one
-foreach($locales as $key => $shortcode)
-{
+echo '<pre>';
+
+foreach ($locales as $key => $shortcode) {
     // This set of vars needs to be in the loop as it depends on locale code
     $xml_data_create['bug_file_loc'] = str_replace('{{{locale}}}', $shortcode, $_POST['url']);
-    $xml_data_create['summary'] = str_replace('{{{locale}}}', $shortcode, $_POST['summary']);
-    $xml_data_create['description'] = str_replace('{{{locale}}}', $shortcode, $_POST['description']);
-    
+    $xml_data_create['summary']      = str_replace('{{{locale}}}', $shortcode, $_POST['summary']);
+    $xml_data_create['description']  = str_replace('{{{locale}}}', $shortcode, $_POST['description']);
+
+    $xml_data_create['bug_file_loc'] = str_replace('{{{lc_locale}}}', strtolower($shortcode), $xml_data_create['bug_file_loc']);
+    $xml_data_create['summary']      = str_replace('{{{lc_locale}}}', strtolower($shortcode), $xml_data_create['summary']);
+    $xml_data_create['description']  = str_replace('{{{lc_locale}}}', strtolower($shortcode), $xml_data_create['description']);
+    $xml_data_create['cf_locale']    = $shortcode . ' / ' . $bugzilla_locales[$shortcode];
+
     // Make the request to file a bug
     $request = xmlrpc_encode_request("Bug.create", $xml_data_create); // create a request for filing bugs
     curl_setopt($curl_start, CURLOPT_POSTFIELDS, $request);
     curl_setopt($curl_start, CURLOPT_COOKIEFILE, $cookie);
     $buglist_array_item = xmlrpc_decode(curl_exec($curl_start)); // Get the ID of the filed bug
+/*
     echo '<br><a href="'. $bugzilla_url . 'show_bug.cgi?id=' . $buglist_array_item['id'] . '">Bug ID=' . $buglist_array_item['id'] . '</a>';
+*/
+    if(isset($_POST['tag'])) {
+        $tag = strip_tags($_POST['tag']);
+    } else {
+        $tag = '';
+    }
+
+    echo dashboardItem($shortcode, $buglist_array_item['id'], strip_tags($xml_data_create['summary']), $tag);
 }
+
+echo '</pre>';
 
 curl_close($curl_start);
 unlink($cookie);
 $time_end = microtime(true);
-$time = $time_end - $time_start;
-echo '<div style="background: #000000; color: #FFFFFF; position: absolute; left: 50%; bottom: 0;"> Script execution time: '.$time.'</div>';
+$time     = $time_end - $time_start;
+echo '<!--  Script execution time: '.$time.'  -->';
+
+
